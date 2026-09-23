@@ -1,0 +1,12 @@
+# Install PyTorch separately first, matching your CUDA driver, e.g.:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# Then install the rest of this file:
+#   pip install -r requirements.txt
+
+ultralytics>=8.3.0
+transformers>=4.44.0
+supervision>=0.24.0
+opencv-python>=4.10.0
+pillow>=10.0.0
+matplotlib>=3.8.0
+numpy>=1.26.0
