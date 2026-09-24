@@ -1,0 +1,21 @@
+# BoT-SORT with appearance re-identification enabled.
+# Base: ultralytics/cfg/trackers/botsort.yaml.
+#
+# Keep weak detections available for existing tracks and retain lost IDs
+# through brief occlusions. ReID still requires spatial overlap; keeping a
+# lost ID in memory is not a guarantee of recovering it after a long gap.
+
+tracker_type: botsort
+track_high_thresh: 0.25
+track_low_thresh: 0.1 # detect_track.py conf must be <= this, otherwise low-score recovery cannot work
+new_track_thresh: 0.35 # preserve the old effective threshold for creating IDs; weaker boxes maintain existing tracks
+track_buffer: 150 # fallback; PersonTracker sets this from source FPS and track_buffer_seconds
+match_thresh: 0.8
+fuse_score: True
+
+gmc_method: none # fixed CCTV camera; use sparseOptFlow if the camera itself moves
+
+proximity_thresh: 0.1 # require >=10% box IoU for ReID; this does NOT match arbitrarily distant reappearances
+appearance_thresh: 0.65 # was 0.8 — less strict similarity required to confirm a re-match
+with_reid: True
+model: auto

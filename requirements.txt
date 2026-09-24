@@ -3,7 +3,8 @@
 # Then install the rest of this file:
 #   pip install -r requirements.txt
 
-ultralytics>=8.3.0
+ultralytics>=8.4.160
+lap>=0.5.12
 transformers>=4.44.0
 supervision>=0.24.0
 opencv-python>=4.10.0
