@@ -1,6 +1,6 @@
 # staffRegconize
 
-FootfallCam AI Evaluation â€” staff identification from CCTV footage.
+FootfallCam AI Evaluation - staff identification from CCTV footage.
 
 ## Setup
 
@@ -9,10 +9,40 @@ python -m venv .venv
 source .venv/Scripts/activate        # Windows Git Bash
 # or: .venv\Scripts\activate.bat     # Windows cmd
 
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# PyTorch: cu128 for an RTX 5090 (Blackwell); cu124 also works on older GPUs such as a GTX 1070 Ti.
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
 pip install boxmot==25.0.0 --no-deps   # ReID tracker for --reid-tracker; see requirements.txt
+python scripts/download_models.py      # yolo26x.pt, osnet_x0_25_msmt17.pt, OWLv2
 ```
+
+## Running on a rented GPU (vast.ai, RTX 5090)
+
+1. Rent an RTX 5090 **on-demand** (not interruptible) instance with at least 50 GB of disk
+   and SSH access, using a **PyTorch image built for CUDA 12.8 or newer**. The image already
+   has PyTorch, so skip the `pip install torch` line.
+2. On the instance (Linux):
+   ```bash
+   apt-get update && apt-get install -y libgl1 libglib2.0-0   # OpenCV needs these on server images
+   git clone -b rtx5090_version https://github.com/Kenny041223/staffRegconize.git code
+   cd code
+   pip install -r requirements.txt
+   pip install boxmot==25.0.0 --no-deps
+   python scripts/download_models.py
+   python -c "import torch; print(torch.cuda.get_device_name(0), torch.__version__)"
+   ```
+3. Upload the video from your PC, e.g. `scp -P <port> sample.mp4 root@<host>:~/`.
+   If `download_models.py` cannot fetch the ReID weights, upload
+   `osnet_x0_25_msmt17.pt` into `code/` the same way.
+4. Run the scan, then draw the staff-only video:
+   ```bash
+   python src/identify_staff.py ~/sample.mp4 --reid-tracker --tag-threshold 0.9 --confirmations 2 \
+       --batch-size 4 --output-dir output/tag_scan/run_5090
+   python src/render_evidence_video.py output/tag_scan/run_5090 ~/sample.mp4 output/runs/staff_5090.mp4 \
+       --staff-min-hits 2 --staff-score 0.9
+   ```
+5. Download `output/runs/staff_5090.mp4` and `output/runs/staff_5090.staff.csv` to your PC
+   (`scp -P <port> root@<host>:~/code/output/runs/staff_5090.* .`), then stop the instance.
 
 ## Person tracking
 
