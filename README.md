@@ -11,6 +11,7 @@ source .venv/Scripts/activate        # Windows Git Bash
 
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
+pip install boxmot==25.0.0 --no-deps   # ReID tracker for --reid-tracker; see requirements.txt
 ```
 
 ## Person tracking
