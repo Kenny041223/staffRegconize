@@ -1,6 +1,6 @@
 """Fast YOLO badge pre-filter in front of the OWLv2 matcher.
 
-A small YOLO model trained on synthetic badges (scripts/train_badge/) scans every
+A small YOLO model trained on synthetic badges (yolo_folder/badge_yolo26s.pt) scans every
 person crop in a few milliseconds. Only crops where it sees something badge-like
 go on to OWLv2, which still makes every decision. On sample.mp4 a 0.01 pre-filter
 kept exactly the same staff frames while OWLv2 checked about 19% of the crops.

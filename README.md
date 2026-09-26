@@ -38,11 +38,11 @@ On `sample.mp4` this labels 505 frames, all of them the staff member, in about
 crops. It misses 15.7-25.4 s and 34.6-39.3 s, where his badge is unreadable and
 the tracker gives him new IDs as he passes close to other people.
 
-The badge detector was trained on synthetic data only (the reference badge
-pasted on other people's chests, placed with a pose model); see
-`scripts/train_badge/gen_badges.py`. The `.pt` files are not in git: copy
-`badge_yolo26s.pt` into `yolo_folder/`, or run without `--badge-prefilter`
-(same result, slower).
+The badge detector (YOLO26s, 60 epochs at 416 px) was trained on synthetic data
+only: the reference badge pasted on other people's chests, placed and rotated
+with a pose model, then shrunk, blurred and compressed to camera quality. The
+`.pt` files are not in git: copy `badge_yolo26s.pt` into `yolo_folder/`, or run
+without `--badge-prefilter` (same result, slower).
 
 ## Running on a rented GPU (vast.ai, RTX 5090)
 
