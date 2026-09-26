@@ -326,7 +326,7 @@ def _continuity_decisions(checks, frames, lookup, fps, policy):
 
 CSV_FIELDS = ["frame_idx", "time_seconds", "track_id", "segment", "continuity_id", "display_id", "status",
               "x1", "y1", "x2", "y2", "center_x", "center_y", "confirmed_at_frame", "label_source",
-              "identity_reason"]
+              "identity_reason", "person_id"]
 
 
 def export_decisions(decisions, fps, observations_path, staff_path):

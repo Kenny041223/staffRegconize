@@ -3,8 +3,9 @@
 FootfallCam AI Evaluation: find the frames in which the staff member wearing the
 nametag appears in a CCTV video, and give his xy coordinates.
 
-This branch is **step 1**: person detection and tracking, plus a two-stage nametag
-check (a trained YOLO pre-filter, then OWLv2).
+This branch is **step 2**: step 1 (person detection and tracking, plus a two-stage
+nametag check with a trained YOLO pre-filter and OWLv2), plus **SAM 2.1**, which
+follows the person the nametag identified through the whole video.
 
 ## File structure
 
@@ -17,7 +18,7 @@ code/
 │   ├── reference_1.jpg      photo of the nametag (from the brief)
 │   └── reference_1.tag.json where the nametag is inside that photo
 ├── scripts/
-│   └── download_models.py   downloads the person detector, ReID model and OWLv2
+│   └── download_models.py   downloads the person detector, ReID model, OWLv2 and SAM 2.1
 ├── yolo_folder/             model files (not in git)
 │   ├── yolo26x.pt           person detector
 │   ├── osnet_x0_25_msmt17.pt  person re-identification model
@@ -34,30 +35,32 @@ code/
 ```bash
 python -m venv .venv
 .venv\Scripts\activate                 # Windows; on Linux: source .venv/bin/activate
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128   # cu124 for older GPUs such as a GTX 1070 Ti
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128   # cu124 for older GPUs 
 pip install -r requirements.txt
 pip install boxmot==25.0.0 --no-deps   # tracker library; installed without its own dependencies on purpose
-python scripts/download_models.py      # yolo26x.pt and osnet_x0_25_msmt17.pt into yolo_folder/, plus OWLv2
+python scripts/download_models.py      # yolo26x.pt and osnet_x0_25_msmt17.pt into yolo_folder/, plus OWLv2 and SAM 2.1
 ```
 
 Then copy the trained `badge_yolo26s.pt` into `yolo_folder/` (it is not in git), and put the
 video one folder above `code/` (e.g. `../sample.mp4`), or give its full path.
 
-**2. Find the staff member:**
+**2. Find the staff member** (`--sam2-follow` turns on step 2):
 
-```bash
-python src/identify_staff.py ../sample.mp4 --reid-tracker --tag-threshold 0.9 --confirmations 2 --batch-size 4 --badge-prefilter --output-dir output/tag_scan/step1
+```on terminal: 
+python src/identify_staff.py ../sample.mp4 --reid-tracker --tag-threshold 0.9 --confirmations 2 --batch-size 4 --badge-prefilter --sam2-follow --output-dir output/tag_scan/step2
 ```
 
 **3. Make the video:**
 
 ```bash
-python src/render_evidence_video.py output/tag_scan/step1 ../sample.mp4 output/runs/step1.mp4 --staff-min-hits 2 --staff-score 0.9
+python src/render_evidence_video.py output/tag_scan/step2 ../sample.mp4 output/runs/step2.mp4 --staff-min-hits 2 --staff-score 0.9
 ```
 
-The answer (frames and xy coordinates) is `output/tag_scan/step1/staff_frames.csv`, and the video
-is `output/runs/step1.mp4`. On `sample.mp4` this takes about 7 minutes on a GTX 1070 Ti. Without
-`badge_yolo26s.pt`, leave out `--badge-prefilter`: same result, slower.
+The answer (frames and xy coordinates) is `output/tag_scan/step2/staff_frames.csv`, and the video
+is `output/runs/step2.mp4`. On `sample.mp4` this takes about 5 minutes on an RTX 5090.
+SAM 2 prints nothing while it works, which is normal.
+A smaller or older GPU is too slow for step 2: leave out `--sam2-follow` to run step 1
+only (about 7 minutes). Without `badge_yolo26s.pt`, leave out `--badge-prefilter`: same result, slower.
 
 ## Files in `src/`
 
@@ -70,7 +73,8 @@ is `output/runs/step1.mp4`. On `sample.mp4` this takes about 7 minutes on a GTX 
 | `staff_scan.py` | Picks the clearest (sharpest and largest) image of each person in each 0.75 s window, and checks that a found nametag lies inside that person's box |
 | `badge_prefilter.py` | Fast nametag pre-filter: the trained YOLO26s model removes images that clearly contain no nametag, so only the rest go to OWLv2 (`--badge-prefilter`) |
 | `tag_match.py` | OWLv2 nametag matching: compares a person image with the marked nametag in the reference photo and returns a similarity score |
-| `staff_identity.py` | Decides which boxes are staff: a person whose track has two nametag sightings is staff, and the label follows the track until they cross someone or briefly disappear. Writes the CSV files |
+| `staff_identity.py` | Step 1 decision: a person whose track has two nametag sightings is staff, and the label follows the track until they cross someone or briefly disappear. Writes the CSV files |
+| `sam_follow.py` | **Step 2** (`--sam2-follow`): from a nametag sighting, SAM 2.1 follows that person's body forwards and backwards through the video. The person is staff only if at least two nametag sightings fall inside the body SAM 2 follows |
 | `render_evidence_video.py` | Draws the result video from a saved run, without running any model |
 | `tag_overlay.py` | Draws the small nametag box on the video for a moment after each sighting |
 | `visualize_staff.py` | Runs `identify_staff.py` and then `render_evidence_video.py` in one command |
@@ -83,7 +87,7 @@ is `output/runs/step1.mp4`. On `sample.mp4` this takes about 7 minutes on a GTX 
 |---|---|
 | **Video** | Any video OpenCV can read (e.g. `.mp4`), given as the first argument. Default: `../sample.mp4`, one folder above `code/` |
 | **Reference nametag** | `assets/reference_1.jpg` plus `assets/reference_1.tag.json` (the nametag's box `[x1, y1, x2, y2]` in the photo, and a fingerprint of the photo) |
-| **Models** | The three files in `yolo_folder/`. OWLv2 (`google/owlv2-base-patch16-ensemble`) downloads automatically from Hugging Face |
+| **Models** | The three files in `yolo_folder/`. OWLv2 (`google/owlv2-base-patch16-ensemble`) and SAM 2.1 (`facebook/sam2.1-hiera-large`) download automatically from Hugging Face |
 
 ## Data produced
 
@@ -94,10 +98,12 @@ is `output/runs/step1.mp4`. On `sample.mp4` this takes about 7 minutes on a GTX 
 | `staff_frames.csv` | **The answer:** one row per staff box per frame, with its frame number, time and xy coordinates |
 | `observations.csv` | Every person in every frame, with their status: `confirmed_staff`, `unknown` or `uncertain` |
 | `report.json` | Settings, timings, and every nametag check (score and box) |
+| `sam2_follow.json` | Step 2 only: the box SAM 2 followed in every frame, and which nametag sightings confirm it |
 | `track*_frame*_score*.jpg` | Pictures of the best nametag matches, as evidence |
 
 **`render_evidence_video.py`** writes `output/runs/<name>.mp4` (people labeled STAFF) with
-`<name>.staff.csv`, `<name>.observations.csv` and `<name>.decisions.json` next to it.
+`<name>.staff.csv`, `<name>.observations.csv` and `<name>.decisions.json` next to it. If the
+run has a `sam2_follow.json`, the video uses it (`--no-sam2` to ignore it).
 **`track_people.py`** writes numbered videos, `output/runs/run_001.mp4`, `run_002.mp4`, ...
 
 Main columns of the CSV files:
@@ -105,9 +111,10 @@ Main columns of the CSV files:
 | Column | Meaning |
 |---|---|
 | `frame_idx`, `time_seconds` | Frame number and its time in the video |
-| `track_id` | The tracker's ID for that person |
+| `track_id` | The tracker's ID for that person (`-1` when only SAM 2 found him in that frame) |
+| `person_id` | Step 2: which followed person the staff label belongs to (`STAFF P0` in the video) |
 | `status` | `confirmed_staff`, `unknown` (not staff) or `uncertain` (overlapping another person) |
 | `x1`, `y1`, `x2`, `y2` | The person's box, in pixels (top-left corner is 0, 0) |
 | `center_x`, `center_y` | Centre of the box: **the xy coordinates** |
 | `confirmed_at_frame` | Frame at which this person was confirmed as staff |
-| `label_source` | Why the frame is labeled: from a nametag sighting, or filled in before confirmation (`backfill`) |
+| `label_source` | Why the frame is labeled: `sam2_follow` (step 2), a nametag sighting on the track, or filled in before confirmation (`backfill`) |

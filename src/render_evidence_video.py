@@ -34,6 +34,8 @@ def parse_args(argv=None):
                         help="Re-evaluate staff with 1-5 remembered owned hits and show staff only, unless --show-all is supplied.")
     parser.add_argument("--staff-score", type=float, default=None)
     parser.add_argument("--show-all", action="store_true", help="Show unknown/uncertain people as well as staff.")
+    parser.add_argument("--no-sam2", action="store_true",
+                        help="Ignore the run's saved SAM 2 follow (sam2_follow.json) and use tracker-based labels.")
     parser.add_argument("--staff-mode", choices=("track", "continuity"), default=None,
                         help="Override the run's staff policy (default: the run's saved mode, else track).")
     parser.add_argument("--crossing-iou", type=float, default=None)
@@ -102,6 +104,11 @@ def render(args):
     policy = policy_for_report(report, args)
     observations = load_observations(run_dir / "observations.csv")
     decisions = build_staff_decisions(report["checks"], observations, fps, policy)
+    follow_file = run_dir / "sam2_follow.json"
+    if follow_file.exists() and not args.no_sam2:
+        from sam_follow import Follow, apply_follows
+
+        apply_follows(decisions, [Follow.from_json(f) for f in json.loads(follow_file.read_text(encoding="utf-8"))["follows"]])
     visible = visible_detections(decisions, report["checks"], args)
     allowed = {(f, track_key(d)) for f, detections in visible.items() for d in detections}
     total_frames = report["processed_frames"]
@@ -132,7 +139,8 @@ def render(args):
                 xyxy = np.array([d["bbox"] for d in dets], dtype=float).reshape(-1, 4)
                 # Drawing boundaries reset trails without erasing remembered badge evidence.
                 sv_dets = sv.Detections(xyxy=xyxy, tracker_id=np.array([d["display_id"] for d in dets], dtype=int))
-                captions = [f"STAFF #{d['track_id']}" if d["status"] == "confirmed_staff"
+                captions = [(f"STAFF P{d['person_id']}" if d.get("person_id") is not None else f"STAFF #{d['track_id']}")
+                            if d["status"] == "confirmed_staff"
                             else f"person #{d['track_id']}" + (" (uncertain)" if d["status"] == "uncertain" else "") for d in dets]
                 frame = trails.annotate(frame, sv_dets)
                 frame = boxes.annotate(frame, sv_dets)
