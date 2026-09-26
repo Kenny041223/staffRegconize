@@ -46,6 +46,10 @@ def make_parser():
                              f"to OWLv2. Without a value: {DEFAULT_PREFILTER.name}.")
     parser.add_argument("--prefilter-conf", type=float, default=0.01,
                         help="Pre-filter confidence at which a crop is passed to OWLv2 (low = safer, slower).")
+    parser.add_argument("--sam2-follow", action="store_true",
+                        help="Follow each badge-sighted person with SAM 2.1 video segmentation instead of tracker IDs; "
+                             "a follow is staff when --confirmations sightings fall inside its outline.")
+    parser.add_argument("--sam2-model", default="facebook/sam2.1-hiera-large", help="SAM 2.1 model ID for --sam2-follow.")
     parser.add_argument("--candidate-threshold", type=float, default=0.65,
                         help="Minimum image similarity after foreground/background checks; not a staff-confirmation threshold.")
     parser.add_argument("--device", default=None, help="cpu, cuda:0, or 0")
@@ -276,8 +280,27 @@ def run(args, tracker=None, matcher=None):
         scan_due(frame_idx, flush=True)
     processing_seconds = time.perf_counter() - started
     decisions = build_staff_decisions(checks, observations, fps, policy)
+    sam2_report = None
+    if args.sam2_follow and args.tag_threshold is not None:
+        from sam_follow import SamFollower, apply_follows, follow_staff, sightings
+        from staff_identity import exclusive_owner, track_key
+
+        tick = time.perf_counter()
+        follower = SamFollower(args.sam2_model, device=args.device)
+        lookup = {(f, track_key(d)): d for f, dets in decisions.frames.items() for d in dets}
+        seen = sightings(checks, decisions.frames, lookup, policy, track_key, exclusive_owner)
+        follows = follow_staff(seen, lambda f, box, probes: follower.follow(args.video_path, frame_count, fps, f, box, probes),
+                               fps, policy)
+        apply_follows(decisions, follows)
+        (out_dir / "sam2_follow.json").write_text(json.dumps({"model": args.sam2_model,
+                                                              "follows": [f.to_json() for f in follows]}))
+        sam2_report = {"model": args.sam2_model, "seconds": time.perf_counter() - tick, "sightings": len(seen),
+                       "follows": len(follows), "confirmed": sum(f.confirmed_at is not None for f in follows)}
+        print(f"SAM 2 follow: {sam2_report['confirmed']} of {sam2_report['follows']} follows confirmed "
+              f"from {len(seen)} badge sightings in {sam2_report['seconds']:.1f}s", flush=True)
     staff_frame_count = export_decisions(decisions, fps, out_dir / "observations.csv", out_dir / "staff_frames.csv")
-    confirmed_keys = {(i["track_id"], i["segment"]): i["confirmed_at_frame"] for i in reversed(decisions.intervals)}
+    confirmed_keys = {(i["track_id"], i["segment"]): i["confirmed_at_frame"]
+                      for i in reversed(decisions.intervals) if "track_id" in i}
     ranked = sorted(scheduler.tracks, key=lambda t: t.best_score, reverse=True)
     save_evidence_images(args.video_path, out_dir, ranked, args.top_k)
     report = {
@@ -286,7 +309,7 @@ def run(args, tracker=None, matcher=None):
         "tag_model": matcher.model_name, "settings": vars(args), "fps": fps, "processed_frames": frame_count,
         "matcher": getattr(matcher, "metadata", {}),
         "confirmation_enabled": args.tag_threshold is not None,
-        "model_load_seconds": model_load_seconds, "processing_seconds": processing_seconds,
+        "model_load_seconds": model_load_seconds, "processing_seconds": processing_seconds, "sam2": sam2_report,
         "tag_inference_seconds": tag_seconds, "tag_crops_scanned": scanned,
         "tag_forward_calls": matcher.forward_calls - initial_forward_calls,
         "legacy_every_3_observations_scan_count": sum(n // 3 for n in observed_counts.values()),

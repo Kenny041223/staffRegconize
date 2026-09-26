@@ -16,7 +16,7 @@ pip install boxmot==25.0.0 --no-deps   # ReID tracker for --reid-tracker; see re
 python scripts/download_models.py      # yolo26x.pt and osnet_x0_25_msmt17.pt into yolo_folder/, plus OWLv2
 ```
 
-## Step 1: badge detection + person tracking (this branch)
+## Step 1: badge detection + person tracking
 
 People are found by YOLO26x and tracked by BoT-SORT with an OSNet appearance
 model. Every 0.75 s each person's sharpest crop is checked for the nametag: a
@@ -43,6 +43,40 @@ only: the reference badge pasted on other people's chests, placed and rotated
 with a pose model, then shrunk, blurred and compressed to camera quality. The
 `.pt` files are not in git: copy `badge_yolo26s.pt` into `yolo_folder/`, or run
 without `--badge-prefilter` (same result, slower).
+
+## Step 2: SAM 2 follows the badge wearer (this branch)
+
+Step 1 decides *who* is staff but loses him whenever the tracker changes his ID.
+Step 2 keeps the badge sightings from step 1 and lets SAM 2.1 video segmentation
+decide *where* he is:
+
+1. From the earliest confident badge sighting not yet explained, SAM 2 is
+   prompted with that person's box and follows their pixels frame by frame,
+   forwards to the end and backwards to the start, in 12-second windows (the last
+   outline prompts the next window). A direction stops when SAM 2 reports the
+   person gone for more than 0.5 s.
+2. While following, every badge sighting is checked: is the badge inside the outline?
+3. A follow is staff only when at least `--confirmations` sightings fall inside
+   its outline. Every frame of a confirmed follow is labeled; the box is the
+   matching YOLO person box, or the outline's box when YOLO missed him.
+
+```bash
+python src/identify_staff.py ../sample.mp4 --reid-tracker --tag-threshold 0.9 --confirmations 2 \
+    --batch-size 4 --badge-prefilter --sam2-follow --output-dir output/tag_scan/step2
+python src/render_evidence_video.py output/tag_scan/step2 ../sample.mp4 output/runs/step2.mp4 \
+    --staff-min-hits 2 --staff-score 0.9
+```
+
+On `sample.mp4` the follow started at his first sighting (15.1 s) held all 8 of
+his sightings (15.1-46.4 s) and covers the whole video (1,341 frames): he sits at
+his desk at the start, walks the corridor, puts on a jacket and returns. A second
+follow started from a seated look-alike collected no further sighting and was
+rejected. About 5 minutes on an RTX 5090 with the large SAM 2.1 model (SAM 2 took
+236 s for the two follows); much slower on a GTX 1070 Ti.
+
+Labels before the second sighting (32.6 s) are filled in afterwards: this is an
+offline analysis of the whole video. SAM 2 can drift; the sightings inside its
+outline are the check, and between sightings only its unbroken path supports the label.
 
 ## Running on a rented GPU (vast.ai, RTX 5090)
 
