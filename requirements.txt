@@ -21,7 +21,7 @@ numpy>=1.26.0
 #   pip install boxmot==25.0.0 --no-deps
 # These are the dependencies it needs at runtime:
 filterpy>=1.4.5
-gdown>=5.2.0
+gdown>=5.2.0,<6   # gdown 6 dropped an argument BoxMOT 25 uses for downloads
 pandas>=2.2.0
 platformdirs>=4.0.0
 pyarrow>=15.0.0

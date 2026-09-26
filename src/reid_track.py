@@ -17,11 +17,12 @@ import torch
 from ultralytics import YOLO
 
 PERSON_CLASS_ID = 0
-DEFAULT_REID_WEIGHTS = Path(__file__).resolve().parent.parent / "osnet_x0_25_msmt17.pt"
+DEFAULT_PERSON_MODEL = Path(__file__).resolve().parent.parent / "yolo_folder" / "yolo26x.pt"
+DEFAULT_REID_WEIGHTS = Path(__file__).resolve().parent.parent / "yolo_folder" / "osnet_x0_25_msmt17.pt"
 
 
 class ReidPersonTracker:
-    def __init__(self, model_name: str = "yolo26x.pt", device: Optional[str] = None, conf: float = 0.10,
+    def __init__(self, model_name: str = str(DEFAULT_PERSON_MODEL), device: Optional[str] = None, conf: float = 0.10,
                  imgsz: int = 1280, track_buffer_seconds: float = 6.0, reid_weights=DEFAULT_REID_WEIGHTS):
         if not np.isfinite(track_buffer_seconds) or track_buffer_seconds <= 0:
             raise ValueError("track_buffer_seconds must be finite and positive.")

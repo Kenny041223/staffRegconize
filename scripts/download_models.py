@@ -3,11 +3,11 @@
 Run once after installing requirements.txt and BoxMOT:
     python scripts/download_models.py
 
-- yolo26x.pt            person detector  -> code/yolo26x.pt
-- osnet_x0_25_msmt17.pt ReID (--reid-tracker) -> code/osnet_x0_25_msmt17.pt
+- yolo26x.pt            person detector  -> code/yolo_folder/yolo26x.pt
+- osnet_x0_25_msmt17.pt ReID (--reid-tracker) -> code/yolo_folder/osnet_x0_25_msmt17.pt
 - OWLv2 base            nametag matcher  -> Hugging Face cache
 Files that already exist are skipped. If the ReID download fails (it is hosted
-on Google Drive, which rate-limits), copy osnet_x0_25_msmt17.pt over instead.
+on Google Drive, which rate-limits), copy osnet_x0_25_msmt17.pt into yolo_folder/ instead.
 """
 from pathlib import Path
 
@@ -15,12 +15,14 @@ from transformers import Owlv2ForObjectDetection, Owlv2Processor
 from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parents[1]
-YOLO_WEIGHTS = ROOT / "yolo26x.pt"
-REID_WEIGHTS = ROOT / "osnet_x0_25_msmt17.pt"
+MODELS = ROOT / "yolo_folder"
+YOLO_WEIGHTS = MODELS / "yolo26x.pt"
+REID_WEIGHTS = MODELS / "osnet_x0_25_msmt17.pt"
 OWLV2_MODEL = "google/owlv2-base-patch16-ensemble"
 
 
 def main():
+    MODELS.mkdir(exist_ok=True)
     print(f"YOLO: {YOLO_WEIGHTS.name} ...")
     YOLO(str(YOLO_WEIGHTS))  # Ultralytics downloads a missing official checkpoint to this path.
     print(f"  OK - {YOLO_WEIGHTS}")

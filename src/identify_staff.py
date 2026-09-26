@@ -16,6 +16,7 @@ from uuid import uuid4
 
 import cv2
 
+from badge_prefilter import DEFAULT_PREFILTER, PrefilteredMatcher
 from detect_track import PersonTracker
 from staff_scan import ScanScheduler, make_candidate, owned_tag_match
 from staff_identity import StaffPolicy, ContinuityGuard, build_staff_decisions, export_decisions
@@ -40,6 +41,11 @@ def make_parser():
                         choices=(0, 90, 180, 270),
                         help="Match the reference badge at these rotations (degrees). Default: upright only. "
                              "0 90 180 270 finds more rotated badges but also more look-alikes.")
+    parser.add_argument("--badge-prefilter", nargs="?", const=str(DEFAULT_PREFILTER), default=None, metavar="WEIGHTS",
+                        help="Scan every crop with a small trained YOLO badge detector first; only crops it flags go "
+                             f"to OWLv2. Without a value: {DEFAULT_PREFILTER.name}.")
+    parser.add_argument("--prefilter-conf", type=float, default=0.01,
+                        help="Pre-filter confidence at which a crop is passed to OWLv2 (low = safer, slower).")
     parser.add_argument("--candidate-threshold", type=float, default=0.65,
                         help="Minimum image similarity after foreground/background checks; not a staff-confirmation threshold.")
     parser.add_argument("--device", default=None, help="cpu, cuda:0, or 0")
@@ -177,14 +183,19 @@ def run(args, tracker=None, matcher=None):
     if tracker is None and args.reid_tracker:
         from reid_track import ReidPersonTracker
 
-        tracker = ReidPersonTracker(model_name=str(ROOT / "yolo26x.pt"), device=args.device, imgsz=args.imgsz)
-    tracker = tracker or PersonTracker(model_name=str(ROOT / "yolo26x.pt"), device=args.device, imgsz=args.imgsz)
+        tracker = ReidPersonTracker(model_name=str(ROOT / "yolo_folder" / "yolo26x.pt"), device=args.device, imgsz=args.imgsz)
+    tracker = tracker or PersonTracker(model_name=str(ROOT / "yolo_folder" / "yolo26x.pt"), device=args.device, imgsz=args.imgsz)
     matcher = matcher or TagMatcher(args.reference_path, device=args.device, model_name=args.tag_model,
                                     reference_box=args.reference_box, min_similarity=args.candidate_threshold,
                                     max_area_ratio=args.max_tag_area, rotations=args.reference_rotations)
+    if args.badge_prefilter:
+        matcher = PrefilteredMatcher.load(matcher, args.badge_prefilter, args.prefilter_conf, device=args.device)
     initial_forward_calls = matcher.forward_calls
     model_load_seconds = time.perf_counter() - load_started
     print(f"Tag model: {matcher.model_name}; device: {matcher.device}; batch size: {args.batch_size}", flush=True)
+    if args.badge_prefilter:
+        print(f"Badge pre-filter: {Path(args.badge_prefilter).name} at conf >= {args.prefilter_conf}; "
+              "OWLv2 checks only the crops it flags", flush=True)
     within = "on one track" if args.staff_mode == "track" else f"in {args.evidence_window:g}s"
     confirmation = (f"{args.confirmations} owned hits {within} at raw score >= {args.tag_threshold} ({args.staff_mode} mode)"
                     if args.tag_threshold is not None else "candidate review only (no validated threshold supplied)")
@@ -295,6 +306,8 @@ def run(args, tracker=None, matcher=None):
     print(f"Finished {frame_count} frames in {processing_seconds:.1f}s (tag inference {tag_seconds:.1f}s).")
     print(f"Tag crops: {scanned}; old sampling would request {report['legacy_every_3_observations_scan_count']} "
           "on these same observations.")
+    if isinstance(matcher, PrefilteredMatcher):
+        print(f"Pre-filter: OWLv2 checked {matcher.passed} of {matcher.passed + matcher.skipped} crops.")
     if args.tag_threshold is None:
         print("Candidate review mode: staff_frames.csv contains no automatic labels. Review report.json and the evidence JPGs.")
     else:

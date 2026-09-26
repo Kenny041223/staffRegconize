@@ -13,8 +13,36 @@ source .venv/Scripts/activate        # Windows Git Bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
 pip install boxmot==25.0.0 --no-deps   # ReID tracker for --reid-tracker; see requirements.txt
-python scripts/download_models.py      # yolo26x.pt, osnet_x0_25_msmt17.pt, OWLv2
+python scripts/download_models.py      # yolo26x.pt and osnet_x0_25_msmt17.pt into yolo_folder/, plus OWLv2
 ```
+
+## Step 1: badge detection + person tracking (this branch)
+
+People are found by YOLO26x and tracked by BoT-SORT with an OSNet appearance
+model. Every 0.75 s each person's sharpest crop is checked for the nametag: a
+small trained YOLO badge detector (`yolo_folder/badge_yolo26s.pt`) scans every
+crop in a few milliseconds, and only the crops it flags go to OWLv2, which
+compares them with the reference badge. Two owned sightings at score 0.9 or
+higher on one track make that person staff; the label spreads along the track
+until a crossing or a brief disappearance.
+
+```bash
+python src/identify_staff.py ../sample.mp4 --reid-tracker --tag-threshold 0.9 --confirmations 2 \
+    --batch-size 4 --badge-prefilter --output-dir output/tag_scan/step1
+python src/render_evidence_video.py output/tag_scan/step1 ../sample.mp4 output/runs/step1.mp4 \
+    --staff-min-hits 2 --staff-score 0.9
+```
+
+On `sample.mp4` this labels 505 frames, all of them the staff member, in about
+7 minutes on a GTX 1070 Ti (48 s on an RTX 5090); OWLv2 checks about 19% of the
+crops. It misses 15.7-25.4 s and 34.6-39.3 s, where his badge is unreadable and
+the tracker gives him new IDs as he passes close to other people.
+
+The badge detector was trained on synthetic data only (the reference badge
+pasted on other people's chests, placed with a pose model); see
+`scripts/train_badge/gen_badges.py`. The `.pt` files are not in git: copy
+`badge_yolo26s.pt` into `yolo_folder/`, or run without `--badge-prefilter`
+(same result, slower).
 
 ## Running on a rented GPU (vast.ai, RTX 5090)
 
@@ -33,7 +61,7 @@ python scripts/download_models.py      # yolo26x.pt, osnet_x0_25_msmt17.pt, OWLv
    ```
 3. Upload the video from your PC, e.g. `scp -P <port> sample.mp4 root@<host>:~/`.
    If `download_models.py` cannot fetch the ReID weights, upload
-   `osnet_x0_25_msmt17.pt` into `code/` the same way.
+   `osnet_x0_25_msmt17.pt` into `code/yolo_folder/` the same way.
 4. Run the scan, then draw the staff-only video:
    ```bash
    python src/identify_staff.py ~/sample.mp4 --reid-tracker --tag-threshold 0.9 --confirmations 2 \
@@ -52,7 +80,7 @@ From the `code` directory, run:
 python src/track_people.py
 ```
 
-This uses `yolo26x.pt` and BoT-SORT with appearance matching. Each run saves a
+This uses `yolo_folder/yolo26x.pt` and BoT-SORT with appearance matching. Each run saves a
 new annotated video under `output/runs/`. Coloured boxes are observations;
 thin grey boxes labelled **estimated** are temporary Kalman predictions when
 the detector misses an already confirmed person. Predictions have no detection

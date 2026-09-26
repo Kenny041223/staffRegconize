@@ -15,13 +15,14 @@ from ultralytics import YOLO
 from ultralytics.trackers.basetrack import TrackState
 
 PERSON_CLASS_ID = 0
+DEFAULT_PERSON_MODEL = Path(__file__).resolve().parent.parent / "yolo_folder" / "yolo26x.pt"
 TRACKER_CONFIG = str(Path(__file__).resolve().parent / "trackers" / "botsort_reid.yaml")
 
 
 class PersonTracker:
     def __init__(
         self,
-        model_name: str = "yolo26x.pt",
+        model_name: str = str(DEFAULT_PERSON_MODEL),
         device: Optional[str] = None,
         conf: float = 0.10,
         imgsz: int = 1280,
