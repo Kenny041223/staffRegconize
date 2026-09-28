@@ -30,7 +30,7 @@ def parse_args(argv=None):
 def main():
     args = parse_args()
     report = run(args)
-    output = args.output_path or str(ROOT / "output" / "runs" / "staff_visualization.mp4")
+    output = args.output_path or str(ROOT / "output" / "runs" / f"{Path(report['output_dir']).name}.mp4")
     render_args = parse_render_args([report["output_dir"], args.video_path, output,
                                     "--display-seconds", str(args.display_seconds),
                                     "--min-display-score", str(args.min_display_score)])

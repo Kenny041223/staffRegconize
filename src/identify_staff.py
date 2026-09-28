@@ -41,9 +41,12 @@ def make_parser():
                         choices=(0, 90, 180, 270),
                         help="Match the reference badge at these rotations (degrees). Default: upright only. "
                              "0 90 180 270 finds more rotated badges but also more look-alikes.")
-    parser.add_argument("--badge-prefilter", nargs="?", const=str(DEFAULT_PREFILTER), default=None, metavar="WEIGHTS",
+    parser.add_argument("--badge-prefilter", nargs="?", const=str(DEFAULT_PREFILTER), default=str(DEFAULT_PREFILTER),
+                        metavar="WEIGHTS",
                         help="Scan every crop with a small trained YOLO badge detector first; only crops it flags go "
-                             f"to OWLv2. Without a value: {DEFAULT_PREFILTER.name}.")
+                             f"to OWLv2. Default: yolo_folder/{DEFAULT_PREFILTER.name}, skipped with a warning if missing.")
+    parser.add_argument("--no-badge-prefilter", dest="badge_prefilter", action="store_const", const=None,
+                        help="Send every crop to OWLv2 (same result, slower).")
     parser.add_argument("--prefilter-conf", type=float, default=0.01,
                         help="Pre-filter confidence at which a crop is passed to OWLv2 (low = safer, slower).")
     parser.add_argument("--sam2-follow", action="store_true",
@@ -54,19 +57,19 @@ def make_parser():
                         help="Minimum image similarity after foreground/background checks; not a staff-confirmation threshold.")
     parser.add_argument("--device", default=None, help="cpu, cuda:0, or 0")
     parser.add_argument("--imgsz", type=int, default=1280, help="YOLO person-detector input size.")
-    parser.add_argument("--reid-tracker", action="store_true",
-                        help="Track with BoxMOT BoT-SORT + an OSNet person re-identification model "
-                             "instead of the default tracker (needs boxmot).")
+    parser.add_argument("--reid-tracker", action=argparse.BooleanOptionalAction, default=True,
+                        help="Track with BoxMOT BoT-SORT + an OSNet person re-identification model (default; needs "
+                             "boxmot). --no-reid-tracker uses the Ultralytics BoT-SORT tracker instead.")
     parser.add_argument("--scan-interval", type=float, default=0.75, help="Seconds per unconfirmed person's scan window.")
     parser.add_argument("--sample-every", type=int, default=None, help="Legacy override: scan window in VIDEO frames.")
     parser.add_argument("--confirmed-interval", type=float, default=None,
                         help="Seconds between checks of confirmed tracks. Default: --scan-interval in track mode "
                              "(every extra hit extends the label), 5 in continuity mode.")
     parser.add_argument("--reverify-gap", type=float, default=1.0, help="Reconfirm after this many seconds without observations.")
-    parser.add_argument("--tag-threshold", type=float, default=None,
-                        help="Enable automatic staff confirmation with a validated raw threshold. Default: candidate review only.")
-    parser.add_argument("--confirmations", type=int, default=3, help="Required independent, owned badge hits within the evidence window.")
-    parser.add_argument("--batch-size", type=int, default=1, help="OWLv2 crop batch size; increase if GPU memory permits.")
+    parser.add_argument("--tag-threshold", type=float, default=0.9,
+                        help="OWLv2 score at which a crop counts as a badge sighting (default 0.9).")
+    parser.add_argument("--confirmations", type=int, default=2, help="Badge sightings needed to confirm a person as staff.")
+    parser.add_argument("--batch-size", type=int, default=4, help="OWLv2 crop batch size; lower it if GPU memory runs out.")
     parser.add_argument("--min-crop-size", type=int, default=32)
     parser.add_argument("--min-sharpness", type=float, default=10.0, help="Minimum Laplacian variance; 0 disables blur filtering.")
     parser.add_argument("--max-tag-area", type=float, default=0.08, help="Largest tag/person box area ratio.")
@@ -189,15 +192,19 @@ def run(args, tracker=None, matcher=None):
 
         tracker = ReidPersonTracker(model_name=str(ROOT / "yolo_folder" / "yolo26x.pt"), device=args.device, imgsz=args.imgsz)
     tracker = tracker or PersonTracker(model_name=str(ROOT / "yolo_folder" / "yolo26x.pt"), device=args.device, imgsz=args.imgsz)
-    matcher = matcher or TagMatcher(args.reference_path, device=args.device, model_name=args.tag_model,
-                                    reference_box=args.reference_box, min_similarity=args.candidate_threshold,
-                                    max_area_ratio=args.max_tag_area, rotations=args.reference_rotations)
-    if args.badge_prefilter:
-        matcher = PrefilteredMatcher.load(matcher, args.badge_prefilter, args.prefilter_conf, device=args.device)
+    if matcher is None:
+        matcher = TagMatcher(args.reference_path, device=args.device, model_name=args.tag_model,
+                             reference_box=args.reference_box, min_similarity=args.candidate_threshold,
+                             max_area_ratio=args.max_tag_area, rotations=args.reference_rotations)
+        if args.badge_prefilter and Path(args.badge_prefilter).exists():
+            matcher = PrefilteredMatcher.load(matcher, args.badge_prefilter, args.prefilter_conf, device=args.device)
+        elif args.badge_prefilter:
+            print(f"Warning: badge pre-filter {args.badge_prefilter} not found; every crop goes to OWLv2 "
+                  "(same result, slower).", flush=True)
     initial_forward_calls = matcher.forward_calls
     model_load_seconds = time.perf_counter() - load_started
     print(f"Tag model: {matcher.model_name}; device: {matcher.device}; batch size: {args.batch_size}", flush=True)
-    if args.badge_prefilter:
+    if isinstance(matcher, PrefilteredMatcher):
         print(f"Badge pre-filter: {Path(args.badge_prefilter).name} at conf >= {args.prefilter_conf}; "
               "OWLv2 checks only the crops it flags", flush=True)
     within = "on one track" if args.staff_mode == "track" else f"in {args.evidence_window:g}s"

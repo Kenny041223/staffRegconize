@@ -90,7 +90,7 @@ def visible_detections(decisions, checks, args):
     """Visibility never changes the inputs used for identity decisions."""
     candidate_keys = {track_key(c) for c in checks
                       if c.get("tag_bbox") is not None and c["raw_score"] >= args.min_display_score}
-    staff_only = args.staff_min_hits is not None and not args.show_all
+    staff_only = not args.show_all and (args.staff_min_hits is not None or decisions.policy.min_score is not None)
     return {frame_idx: [d for d in detections
                         if (not args.only_candidates or track_key(d) in candidate_keys)
                         and (not staff_only or d["status"] == "confirmed_staff")]
@@ -116,7 +116,7 @@ def render(args):
                                         args.display_seconds, args.min_display_score,
                                         policy=policy, allowed_owners=allowed)
     video_path = args.video_path or report.get("video") or str(DEFAULT_VIDEO)
-    output = Path(args.output_path or ROOT / "output" / "runs" / "staff_visualization.mp4")
+    output = Path(args.output_path or ROOT / "output" / "runs" / f"{run_dir.name}.mp4")
     if output.resolve() == Path(video_path).resolve():
         raise ValueError("Output video must differ from the source video.")
     output.parent.mkdir(parents=True, exist_ok=True)

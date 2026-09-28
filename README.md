@@ -3,9 +3,9 @@
 FootfallCam AI Evaluation: find the frames in which the staff member wearing the
 nametag appears in a CCTV video, and give his xy coordinates.
 
-This branch is **step 2**: step 1 (person detection and tracking, plus a two-stage
-nametag check with a trained YOLO pre-filter and OWLv2), plus **SAM 2.1**, which
-follows the person the nametag identified through the whole video.
+The pipeline has two steps. **Step 1** finds and tracks people and checks them for the
+nametag (a trained YOLO pre-filter, then OWLv2). **Step 2** (`--sam2-follow`) adds SAM 2.1,
+which follows the person the nametag identified through the whole video.
 
 ## File structure
 
@@ -44,23 +44,31 @@ python scripts/download_models.py      # yolo26x.pt and osnet_x0_25_msmt17.pt in
 Then copy the trained `badge_yolo26s.pt` into `yolo_folder/` (it is not in git), and put the
 video one folder above `code/` (e.g. `../sample.mp4`), or give its full path.
 
-**2. Find the staff member** (`--sam2-follow` turns on step 2):
-
-```on terminal: 
-python src/identify_staff.py ../sample.mp4 --reid-tracker --tag-threshold 0.9 --confirmations 2 --batch-size 4 --badge-prefilter --sam2-follow --output-dir output/tag_scan/step2
-```
-
-**3. Make the video:**
+**2. Find the staff member.** Step 2 (needs a strong GPU):
 
 ```bash
-python src/render_evidence_video.py output/tag_scan/step2 ../sample.mp4 output/runs/step2.mp4 --staff-min-hits 2 --staff-score 0.9
+python src/identify_staff.py ../sample.mp4 --sam2-follow --output-dir output/tag_scan/step2
+```
+
+or step 1 only (about 7 minutes on a GTX 1070 Ti):
+
+```bash
+python src/identify_staff.py ../sample.mp4 --output-dir output/tag_scan/step1
+```
+
+**3. Make the video** (people labeled STAFF), e.g. for step 2:
+
+```bash
+python src/render_evidence_video.py output/tag_scan/step2
 ```
 
 The answer (frames and xy coordinates) is `output/tag_scan/step2/staff_frames.csv`, and the video
-is `output/runs/step2.mp4`. On `sample.mp4` this takes about 5 minutes on an RTX 5090.
-SAM 2 prints nothing while it works, which is normal.
-A smaller or older GPU is too slow for step 2: leave out `--sam2-follow` to run step 1
-only (about 7 minutes). Without `badge_yolo26s.pt`, leave out `--badge-prefilter`: same result, slower.
+is `output/runs/step2.mp4`. On `sample.mp4`, step 2 takes about 5 minutes on an RTX 5090; SAM 2
+prints nothing while it works, which is normal. Use a new `--output-dir` name for each run.
+
+The defaults are the tested settings: the ReID tracker, a badge score of 0.9, two sightings to
+confirm staff, and the `badge_yolo26s.pt` pre-filter (if the file is missing, a warning is
+printed and every image goes to OWLv2: same result, slower).
 
 ## Files in `src/`
 

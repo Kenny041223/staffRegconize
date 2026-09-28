@@ -12,7 +12,6 @@ transformers>=4.44.0
 supervision>=0.24.0
 opencv-python>=4.10.0
 pillow>=10.0.0
-matplotlib>=3.8.0
 numpy>=1.26.0
 
 # BoxMOT 25.0.0 (BoT-SORT + OSNet ReID, used by --reid-tracker). Its own pins
