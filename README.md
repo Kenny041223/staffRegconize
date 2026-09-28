@@ -27,6 +27,38 @@ code/
 └── README.md
 ```
 
+## How to run
+
+**1. Set up (once).** Needs Python 3.10+ and an NVIDIA GPU. Run from the `code/` folder:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate                 # Windows; on Linux: source .venv/bin/activate
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128   # cu124 for older GPUs such as a GTX 1070 Ti
+pip install -r requirements.txt
+pip install boxmot==25.0.0 --no-deps   # tracker library; installed without its own dependencies on purpose
+python scripts/download_models.py      # yolo26x.pt and osnet_x0_25_msmt17.pt into yolo_folder/, plus OWLv2
+```
+
+Then copy the trained `badge_yolo26s.pt` into `yolo_folder/` (it is not in git), and put the
+video one folder above `code/` (e.g. `../sample.mp4`), or give its full path.
+
+**2. Find the staff member:**
+
+```bash
+python src/identify_staff.py ../sample.mp4 --reid-tracker --tag-threshold 0.9 --confirmations 2 --batch-size 4 --badge-prefilter --output-dir output/tag_scan/step1
+```
+
+**3. Make the video:**
+
+```bash
+python src/render_evidence_video.py output/tag_scan/step1 ../sample.mp4 output/runs/step1.mp4 --staff-min-hits 2 --staff-score 0.9
+```
+
+The answer (frames and xy coordinates) is `output/tag_scan/step1/staff_frames.csv`, and the video
+is `output/runs/step1.mp4`. On `sample.mp4` this takes about 7 minutes on a GTX 1070 Ti. Without
+`badge_yolo26s.pt`, leave out `--badge-prefilter`: same result, slower.
+
 ## Files in `src/`
 
 | File | What it does |
