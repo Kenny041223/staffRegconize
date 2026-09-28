@@ -1,7 +1,7 @@
 # Install PyTorch separately first, matching your GPU and CUDA driver:
 #   RTX 50xx (e.g. 5090, Blackwell) needs a CUDA 12.8+ build:
 #     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-#   Older GPUs (e.g. GTX 1070 Ti) also work with the cu124 build.
+#   Older GPUs also work with the cu124 build.
 #   A rented machine with a PyTorch (CUDA 12.8+) image already has it: skip this step.
 # Then install the rest of this file:
 #   pip install -r requirements.txt

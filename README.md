@@ -50,7 +50,7 @@ video one folder above `code/` (e.g. `../sample.mp4`), or give its full path.
 python src/identify_staff.py ../sample.mp4 --sam2-follow --output-dir output/tag_scan/step2
 ```
 
-or step 1 only (about 7 minutes on a GTX 1070 Ti):
+or step 1 only:
 
 ```bash
 python src/identify_staff.py ../sample.mp4 --output-dir output/tag_scan/step1
