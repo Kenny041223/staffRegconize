@@ -72,7 +72,7 @@ def main():
     cap.release()
 
     tracker = PersonTracker(
-        model_name=str(ROOT / "yolo26x.pt"), device=args.device, conf=args.conf,
+        model_name=str(ROOT / "yolo_folder" / "yolo26x.pt"), device=args.device, conf=args.conf,
         imgsz=args.imgsz, hold_seconds=args.hold_seconds,
         track_buffer_seconds=args.track_buffer_seconds, tracker_config=args.tracker,
     )

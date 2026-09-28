@@ -1,5 +1,8 @@
-# Install PyTorch separately first, matching your CUDA driver, e.g.:
-#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# Install PyTorch separately first, matching your GPU and CUDA driver:
+#   RTX 50xx (e.g. 5090, Blackwell) needs a CUDA 12.8+ build:
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#   Older GPUs (e.g. GTX 1070 Ti) also work with the cu124 build.
+#   A rented machine with a PyTorch (CUDA 12.8+) image already has it: skip this step.
 # Then install the rest of this file:
 #   pip install -r requirements.txt
 
@@ -9,5 +12,17 @@ transformers>=4.44.0
 supervision>=0.24.0
 opencv-python>=4.10.0
 pillow>=10.0.0
-matplotlib>=3.8.0
 numpy>=1.26.0
+
+# BoxMOT 25.0.0 (BoT-SORT + OSNet ReID, used by --reid-tracker). Its own pins
+# (lapx, opencv-python<5) clash with the packages above, so install it WITHOUT
+# its dependencies after this file:
+#   pip install boxmot==25.0.0 --no-deps
+# These are the dependencies it needs at runtime:
+filterpy>=1.4.5
+gdown>=5.2.0,<6   # gdown 6 dropped an argument BoxMOT 25 uses for downloads
+pandas>=2.2.0
+platformdirs>=4.0.0
+pyarrow>=15.0.0
+scikit-learn>=1.5.0
+timm>=1.0.0
